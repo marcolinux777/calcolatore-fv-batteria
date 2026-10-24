@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from PIL import Image
 
-from engine import config, finanza, giudizio, parser, pv, report, sim
+from engine import config, finanza, geocode, giudizio, parser, pv, report, sim
 
 # palette climaction
 import stile
@@ -61,6 +61,11 @@ def style(fig, h=380, ytitle=None):
 @st.cache_data(show_spinner=False)
 def cfg_cached(_mtime):  # la cache si invalida quando il file cambia
     return config.load_config()
+
+
+@st.cache_data(show_spinner="Cerco il comune...", ttl=86400, max_entries=200)
+def cerca_cached(q):
+    return geocode.cerca(q)
 
 
 @st.cache_data(show_spinner="Lettura della curva di consumo...", max_entries=3)
@@ -155,13 +160,29 @@ with c1:
     up = st.file_uploader("Curva di consumo quartoraria (CSV dal Portale Consumi ARERA)", type=["csv"])
     st.caption("Il file viene elaborato solo in memoria per il calcolo e non viene salvato.")
 with c2:
-    comune = st.selectbox("Località", list(COMUNI))
-    if COMUNI[comune] is None:
+    ricerca = st.text_input("Comune", value="Novara", help="Scrivi il nome del comune e premi Invio.")
+    manuale = st.toggle("Inserisci le coordinate a mano")
+    if manuale:
         cc = st.columns(2)
         lat = cc[0].number_input("Latitudine", value=45.446, format="%.4f")
         lon = cc[1].number_input("Longitudine", value=8.622, format="%.4f")
+        comune = f"{lat:.4f}, {lon:.4f}"
     else:
-        lat, lon = COMUNI[comune]
+        try:
+            trovati = cerca_cached(ricerca)
+        except Exception:  # noqa: BLE001
+            trovati = None
+            st.error("Il servizio di ricerca dei comuni non risponde. Riprova tra poco "
+                     "oppure inserisci le coordinate a mano.")
+        if trovati == []:
+            st.warning("Nessun comune trovato: controlla il nome o inserisci le coordinate a mano.")
+        if not trovati:
+            st.stop()
+        scelta = st.selectbox("Conferma la località", trovati, format_func=geocode.etichetta)
+        lat, lon = scelta["lat"], scelta["lon"]
+        comune = geocode.etichetta(scelta)
+        st.caption(f"{comune} · {abs(lat):.3f}° {'N' if lat >= 0 else 'S'}, "
+                   f"{abs(lon):.3f}° {'E' if lon >= 0 else 'O'}")
     orient = st.selectbox("Orientamento del tetto", list(pv.ORIENTAMENTI))
     tetto = st.radio("Tipo di tetto", ["A falda", "Piano"], horizontal=True)
 with c3:
@@ -433,7 +454,7 @@ if best is not None:
                       "spesa/risparmio.")
 
     # ---- esportazione PDF
-    luogo = comune if COMUNI[comune] else f"{lat:.4f}, {lon:.4f}"
+    luogo = comune
     ob_txt = finanza.OBIETTIVI[S.obiettivo]
     if S.obiettivo == "rientro_entro":
         ob_txt += f" ({S.val_rientro} anni)"

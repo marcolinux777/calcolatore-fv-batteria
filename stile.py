@@ -106,6 +106,12 @@ a, a:visited {{ color: {VERDE}; }}
 .giudizio {{ display:inline-block; padding:0.15rem 0.6rem; border-radius:999px; color:white;
             font-weight:600; font-size:1.05rem; }}
 .giudizio-label {{ color:{TESTO_SOFT}; font-size:0.98rem; margin-bottom:0.2rem; }}
+/* testo di Streamlit "Press Enter to apply" tradotto in italiano */
+[data-testid="InputInstructions"] {{ visibility: hidden; position: relative; }}
+[data-testid="InputInstructions"]::after {{
+    content: "Premi Invio per applicare"; visibility: visible;
+    position: absolute; right: 0; top: 0; white-space: nowrap;
+}}
 </style>
 """
 
