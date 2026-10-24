@@ -9,8 +9,8 @@ aggiornamento = "ottobre 2026"
 fonte = "Stime di mercato da verificare (preventivi installatori, prezzi ARERA, GSE)"
 
 [costi]
-fv_eur_kwp = 1600.0          # impianto FV residenziale chiavi in mano, IVA inclusa, €/kWp
-batteria_eur_kwh = 550.0     # accumulo, €/kWh nominale installato
+fv_eur_kwp = 1500.0          # impianto FV residenziale chiavi in mano, IVA inclusa, €/kWp
+batteria_eur_kwh = 400.0     # accumulo, €/kWh nominale installato
 batteria_fisso_eur = 1500.0  # quota fissa batteria (inverter ibrido, installazione)
 manutenzione_eur_kwp_anno = 15.0
 
