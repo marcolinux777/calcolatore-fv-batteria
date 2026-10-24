@@ -1,0 +1,14 @@
+[theme]
+# palette climaction (climaction_palette.py v1.1)
+base = "light"
+primaryColor = "#2F5D46"              # verde del sito
+backgroundColor = "#FAF8F5"           # carta
+secondaryBackgroundColor = "#F1EDE7"  # campi e riquadri, appena più scuro della carta
+textColor = "#1A1A1A"
+font = "sans serif"                   # Source Sans: il font del corpo del sito
+
+[server]
+maxUploadSize = 10
+
+[browser]
+gatherUsageStats = false

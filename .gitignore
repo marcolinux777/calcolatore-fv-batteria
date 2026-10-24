@@ -1,0 +1,5 @@
+# curve di carico personali: MAI nel repository
+data/
+*.csv
+__pycache__/
+.ipynb_checkpoints/

@@ -1,0 +1,9 @@
+streamlit>=1.40
+pandas>=2.2
+numpy
+numba
+plotly
+requests
+pyarrow
+fpdf2
+matplotlib
