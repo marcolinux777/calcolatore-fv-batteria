@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from PIL import Image
 
-from engine import config, finanza, geocode, giudizio, parser, pv, report, sim
+from engine import config, finanza, geocode, giudizio, parser, profili, pv, report, sim
 
 # palette climaction
 import stile
@@ -156,9 +156,38 @@ st.caption("Strumento pensato per **abitazioni private** (utenze domestiche di p
 # ================================================================ 1. dati
 st.subheader("1 · I tuoi dati")
 c1, c2, c3 = st.columns(3, gap="large")
+MODI = ["Carico il file del Portale Consumi", "Ho le fasce F1/F2/F3 della bolletta", "Indico solo il consumo annuo"]
+MESI_LUNGHI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
+               "settembre", "ottobre", "novembre", "dicembre"]
+PRES_TXT = {"quasi mai": "Quasi mai (tutti fuori casa)", "a volte": "A volte",
+            "sempre": "Quasi sempre (smart working, pensionati...)"}
 with c1:
-    up = st.file_uploader("Curva di consumo quartoraria (CSV dal Portale Consumi ARERA)", type=["csv"])
-    st.caption("Il file viene elaborato solo in memoria per il calcolo e non viene salvato.")
+    modo = st.radio("Come vuoi dirmi i tuoi consumi?", MODI, key="modo",
+                    help="Il file del Portale Consumi è la strada più precisa. Le altre due costruiscono "
+                         "un profilo stimato: sono più veloci ma più incerte.")
+    up = None
+    if modo == MODI[0]:
+        up = st.file_uploader("Curva di consumo quartoraria (CSV dal Portale Consumi ARERA)", type=["csv"])
+        st.caption("Il file viene elaborato solo in memoria per il calcolo e non viene salvato.")
+    elif modo == MODI[1]:
+        cc = st.columns(3)
+        f1_in = cc[0].number_input("F1 [kWh/anno]", 0, 40000, 0, 50)
+        f2_in = cc[1].number_input("F2 [kWh/anno]", 0, 40000, 0, 50)
+        f3_in = cc[2].number_input("F3 [kWh/anno]", 0, 40000, 0, 50)
+        mensili_in = None
+        if st.toggle("Ho anche i consumi mensili (più preciso)"):
+            ed = st.data_editor(pd.DataFrame({"Mese": MESI_LUNGHI, "kWh": [0.0] * 12}), hide_index=True,
+                                disabled=["Mese"], height=460,
+                                column_config={"kWh": st.column_config.NumberColumn(min_value=0.0, step=10.0)})
+            if ed["kWh"].sum() > 0:
+                mensili_in = ed["kWh"].tolist()
+        st.caption("Li trovi in bolletta o nell'area clienti del fornitore. Meglio se sono gli ultimi 12 mesi.")
+    else:
+        kwh_in = st.number_input("Consumo annuo [kWh]", 300, 20000, 2700, 100)
+        pres_in = st.radio("Di giorno in casa c'è qualcuno?", list(PRES_TXT), index=1,
+                           format_func=PRES_TXT.get, horizontal=True)
+        pdc_in = st.checkbox("Riscaldo la casa con la pompa di calore")
+    aiuto_consumi = st.empty()
 with c2:
     ricerca = st.text_input("Comune", value="Novara", help="Scrivi il nome del comune e premi Invio.")
     manuale = st.toggle("Inserisci le coordinate a mano")
@@ -194,23 +223,63 @@ with c3:
         p_imp = None
     else:
         p_imp = float(cont.split()[0].replace(",", "."))
+    if p_imp is None and modo != MODI[0]:
+        st.caption("Senza il file non posso stimarla dai picchi: assumo 3 kW.")
     prev = st.toggle("Ho già un preventivo da verificare")
     if prev:
         cc = st.columns(2)
         prev_kwp = cc[0].number_input("Fotovoltaico [kW]", 1.0, 20.0, 6.0, 0.1)
         prev_kwh = cc[1].number_input("Batteria [kWh]", 0.0, 40.0, 10.0, 0.5)
 
-if up is None:
-    st.info("Per iniziare carica il file con i tuoi consumi. Le istruzioni per scaricarlo dal "
-            f"Portale Consumi sono nella [pagina di istruzioni su climaction.it]({CFG['app']['url_istruzioni']}).")
-    footer()
-    st.stop()
+regione_nome = None if manuale else scelta.get("regione", "")
+reg_arera = profili.regione_arera(regione_nome)
+if modo == MODI[1]:
+    q = profili.quote_fasce_tipiche(reg_arera, "3_a_4_5")
+    aiuto_consumi.caption(
+        f"Per riferimento: un'abitazione con contatore da 3 kW {('in ' + reg_arera) if reg_arera else 'in Italia'} "
+        f"ha in media il {q[0]:.0%} dei consumi in F1, il {q[1]:.0%} in F2 e il {q[2]:.0%} in F3 (ARERA, 2025).")
+elif modo == MODI[2]:
+    t = profili.consumo_tipico(reg_arera)
+    aiuto_consumi.caption(
+        f"Per riferimento, consumo medio annuo di un'abitazione residente {('in ' + reg_arera) if reg_arera else 'in Italia'} "
+        "con contatore da " + "; ".join(f"{profili.CLASSE_ETICHETTA[c]}: {num(v)} kWh" for c, v in t.items())
+        + " (ARERA, 2025).")
 
-try:
-    load, daily, rep = load_cached(up.getvalue())
-except Exception as e:  # noqa: BLE001
-    st.error(f"Impossibile leggere il file: {e}")
-    st.stop()
+stima = None
+if modo == MODI[0]:
+    if up is None:
+        st.info("Per iniziare carica il file con i tuoi consumi. Le istruzioni per scaricarlo dal "
+                f"Portale Consumi sono nella [pagina di istruzioni su climaction.it]({CFG['app']['url_istruzioni']}). "
+                "Se non vuoi o non puoi scaricarlo, scegli un'altra opzione qui sopra.")
+        footer()
+        st.stop()
+    try:
+        load, daily, rep = load_cached(up.getvalue())
+    except Exception as e:  # noqa: BLE001
+        st.error(f"Impossibile leggere il file: {e}")
+        st.stop()
+else:
+    try:
+        if modo == MODI[1]:
+            if f1_in + f2_in + f3_in <= 0:
+                st.info("Inserisci i kWh annui delle tre fasce F1, F2 e F3 per iniziare.")
+                footer()
+                st.stop()
+            stima = profili.da_fasce(f1_in, f2_in, f3_in, mensili=mensili_in, regione=regione_nome)
+        else:
+            stima = profili.da_consumo_annuo(kwh_in, regione=regione_nome, presenza=pres_in, pompa_calore=pdc_in)
+    except ValueError as e:
+        st.error(f"Dati non validi: {e}")
+        st.stop()
+    load, daily = stima.serie, None
+    rep = parser.LoadReport(pod="", righe_file=0, duplicati_rimossi=0, giorni_validi=365,
+                            finestra_inizio=load.index[0], finestra_fine=load.index[-1], avvisi=stima.avvisi)
+    st.info("**Profilo di consumo stimato.** Non avendo la tua curva, la ricostruisco dai dati ARERA sui "
+            "consumi domestici della tua regione, adattati ai kWh che indichi. I risultati su autonomia e "
+            f"rientro sono quindi più incerti ({stima.incertezza}). Per un calcolo più preciso carica il file "
+            "del Portale Consumi.")
+    for a in stima.avvisi:
+        st.caption("• " + a)
 
 angle = S.adv_incl if S.adv_incl_on else int(FV["inclinazione_falda"] if tetto == "A falda" else FV["inclinazione_piano"])
 try:
@@ -221,8 +290,12 @@ except Exception as e:  # noqa: BLE001
     st.stop()
 pv1 = profiles[yrs[S.adv_meteo]]
 
-picco, p_stimata = giudizio.potenza_contatore_stimata(load)
-p_cont = p_imp if p_imp else p_stimata
+if stima is None:
+    picco, p_stimata = giudizio.potenza_contatore_stimata(load)
+    p_cont = p_imp if p_imp else p_stimata
+else:  # profilo stimato: i picchi reali non si vedono, la potenza non si deduce da qui
+    picco, p_stimata = float(load.max() * 4), None
+    p_cont = p_imp if p_imp else 3.0
 lim = p_cont * 1.1 if S.adv_lim else 0.0
 dod, eta, crate, pmin = S.adv_dod / 100, S.adv_eta / 100, S.adv_crate, S.adv_pmin
 passo = float(AN["passo_batteria_kwh"])
@@ -308,7 +381,7 @@ else:
                "Approfondimenti → Ipotesi di calcolo.")
     if kwp > p_cont:
         st.info(f"L'impianto da {num(kwp, 1)} kW supera la potenza del contatore "
-                f"({num(p_cont, 1)} kW{' stimati dai tuoi consumi' if p_imp is None else ''}): ricordati di "
+                f"({num(p_cont, 1)} kW{(' stimati dai tuoi consumi' if stima is None else ' assunti') if p_imp is None else ''}): ricordati di "
                 "chiedere con l'installatore l'adeguamento della potenza in immissione al distributore, "
                 "insieme alla pratica di connessione.")
     if best.get("tagliata", 0) > 1:
@@ -463,10 +536,11 @@ if best is not None:
     dati_pdf = [
         ("Località", luogo),
         ("Tetto", f"{orient}, {tetto.lower()}, inclinazione {angle}°"),
-        ("Consumo annuo", f"{num(consumo)} kWh (dati dal {rep.finestra_inizio:%d/%m/%Y} al "
-                          f"{rep.finestra_fine:%d/%m/%Y}, {rep.giorni_validi} giorni misurati)"),
+        ("Consumo annuo", (f"{num(consumo)} kWh (profilo stimato: {stima.descrizione})" if stima is not None
+                           else f"{num(consumo)} kWh (dati dal {rep.finestra_inizio:%d/%m/%Y} al "
+                                f"{rep.finestra_fine:%d/%m/%Y}, {rep.giorni_validi} giorni misurati)")),
         ("Produzione FV specifica", f"{num(pv1.sum())} kWh per kW all'anno (PVGIS, anno meteo {S.adv_meteo})"),
-        ("Potenza del contatore", f"{num(p_cont, 1)} kW" + (" (stimata dai consumi)" if p_imp is None else "")),
+        ("Potenza del contatore", f"{num(p_cont, 1)} kW" + ((" (stimata dai consumi)" if stima is None else " (assunta)") if p_imp is None else "")),
         ("Superficie libera sul tetto", f"{S.superficie} m²" if S.superficie else "non indicata"),
         ("Incentivo", f"{inc['nome']}, {inc['percentuale']:.0%}" + validita(inc)),
         ("Obiettivo", "configurazione scelta dall'utente" if S.adv_libera else ob_txt),
@@ -474,6 +548,10 @@ if best is not None:
     if modificati:
         dati_pdf.append(("Parametri avanzati", f"{len(modificati)} valori diversi da quelli standard"))
     avvisi_pdf = [x for x in [avviso_ob, inc.get("avviso") or None] if x]
+    if stima is not None:
+        avvisi_pdf.append(f"Profilo di consumo stimato, non misurato ({stima.incertezza}). Autonomia, "
+                          "autoconsumo e rientro sono più incerti rispetto a un calcolo con la curva del "
+                          "Portale Consumi.")
     if kwp > p_cont:
         avvisi_pdf.append(f"L'impianto supera la potenza del contatore ({num(p_cont, 1)} kW): va chiesto "
                           "l'adeguamento della potenza in immissione al distributore.")
@@ -575,15 +653,22 @@ if best is not None:
     with st.expander("I tuoi consumi"):
         c = st.columns(4)
         c[0].metric("Consumo annuo", f"{num(consumo)} kWh")
-        c[1].metric("Giorni misurati", f"{rep.giorni_validi} / 365")
-        c[2].metric("Picco sul quarto d'ora", f"{num(picco, 1)} kW")
+        if stima is None:
+            c[1].metric("Giorni misurati", f"{rep.giorni_validi} / 365")
+            c[2].metric("Picco sul quarto d'ora", f"{num(picco, 1)} kW")
+        else:
+            c[1].metric("Origine dei dati", "Profilo stimato")
+            c[2].metric("Picco sul quarto d'ora", "n.d.", help="Un profilo stimato non mostra i picchi reali.")
         c[3].metric("Produzione FV", f"{num(pv1.sum())} kWh/kW",
                     help=f"PVGIS, anno meteo {yrs[S.adv_meteo]}")
         gaps = parser.missing_ranges(rep.giorni_mancanti)
         if gaps:
             txt = ", ".join(f"{a:%d/%m}–{b:%d/%m}" if a != b else f"{a:%d/%m}" for a, b in gaps)
             st.caption(f"Giorni mancanti nel file, ricostruiti con giorni simili vicini: {txt}.")
-        if p_imp is None:
+        if stima is not None:
+            st.caption("Profilo stimato: la potenza del contatore non si può ricavare dai picchi, quindi si usa "
+                       "quella che indichi (3 kW se non la conosci).")
+        elif p_imp is None:
             st.caption(f"Dai picchi stimiamo una potenza impegnata di almeno {num(p_stimata, 1)} kW.")
         elif picco > p_imp * 1.1:
             st.warning(f"I tuoi consumi arrivano a {num(picco, 1)} kW medi sul quarto d'ora, sopra i "
