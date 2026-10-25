@@ -98,7 +98,8 @@ def footer():
                 f"[Come funziona lo strumento]({CFG['app']['url_istruzioni']})  \n"
                 "Strumento per abitazioni private. "
                 f"Costi e prezzi standard aggiornati a {CFG['meta']['aggiornamento']}. "
-                "Le stime hanno un'incertezza indicativa del 10–20%.")
+                "Le stime hanno un'incertezza indicativa del 10–20%.  \n"
+                f"Versione {CFG['meta'].get('versione', '?')} · agg. {CFG['meta'].get('data_versione', '')}")
 
 
 # ================================================================ configurazione e valori di default
@@ -111,6 +112,7 @@ B, FV, AN, CO, EN, FZ = (CFG[k] for k in ("batteria", "fv", "analisi", "costi", 
 INC = CFG["incentivi"]
 COMUNI = {k: tuple(v) for k, v in CFG["comuni"].items()} | {ALTRO: None}
 SITO = CFG["app"].get("url_sito", "https://climaction.it/")
+URL_CER = CFG["app"].get("url_vetrina_cer", "https://www.gse.it/servizi-per-te/autoconsumo/vetrina-delle-cer")
 LOGO_PNG = stile.carica_logo(ROOT / CFG["app"]["logo"])
 
 # parametri avanzati: valori standard da parametri.toml
@@ -379,6 +381,9 @@ else:
                     help="Valore attuale netto: quanto guadagni in totale, in euro di oggi.")
     st.caption("Calcolo economico semplificato: le voci considerate e quelle escluse sono in "
                "Approfondimenti → Ipotesi di calcolo.")
+    st.caption("Se pensi di entrare in una comunità energetica rinnovabile (CER), l'energia che non "
+               "consumi e immetti in rete può essere remunerata di più: questi calcoli non ne tengono "
+               f"conto. Cerca le CER vicino a casa nella [Vetrina delle CER del GSE]({URL_CER}).")
     if kwp > p_cont:
         st.info(f"L'impianto da {num(kwp, 1)} kW supera la potenza del contatore "
                 f"({num(p_cont, 1)} kW{(' stimati dai tuoi consumi' if stima is None else ' assunti') if p_imp is None else ''}): ricordati di "
@@ -709,7 +714,10 @@ if best is not None:
     with st.expander("Altre opportunità da valutare"):
         st.markdown(
             "- **Comunità energetiche rinnovabili (CER)**: l'energia immessa in rete e consumata da altri "
-            "membri nella stessa ora riceve una tariffa incentivante per 20 anni.\n"
+            "membri nella stessa ora riceve una tariffa incentivante per 20 anni. Se l'idea è di entrare "
+            "in una CER, i calcoli economici di questo strumento vanno rivisti, perché non ne tengono conto. "
+            f"Le regole cambiano da una CER all'altra: cerca quelle vicino a casa tua nella "
+            f"[Vetrina delle CER del GSE]({URL_CER}) e chiedi lo statuto prima di aderire.\n"
             "- **Reddito energetico**: contributo a fondo perduto per famiglie con ISEE basso, quando c'è "
             "un bando aperto.\n"
             "- **Contributi regionali o comunali**: verifica i bandi del tuo territorio.")

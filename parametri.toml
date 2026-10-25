@@ -6,6 +6,8 @@
 
 [meta]
 aggiornamento = "ottobre 2026"
+versione = "2.1"                 # versione dello strumento (mostrata nel piè di pagina)
+data_versione = "25/10/2026"
 fonte = "Stime di mercato da verificare (preventivi installatori, prezzi ARERA, GSE)"
 
 [costi]
@@ -103,6 +105,7 @@ produzione_alta = 1.3        # sopra cui il FV è "grande"
 [app]
 url_istruzioni = "https://climaction.it/calcolatore-fotovoltaico/"   # pagina WordPress di presentazione
 url_sito = "https://climaction.it/"                          # il logo rimanda qui
+url_vetrina_cer = "https://www.gse.it/servizi-per-te/autoconsumo/vetrina-delle-cer"   # Vetrina delle CER del GSE (ricerca per POD)
 logo = "assets/logo_climaction.png"             # logo climaction (intestazione, piè di pagina, PDF, icona)
 firma = "Ing. Marco Cigolotti"
 
