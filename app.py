@@ -170,7 +170,9 @@ with c1:
     up = None
     if modo == MODI[0]:
         up = st.file_uploader("Curva di consumo quartoraria (CSV dal Portale Consumi ARERA)", type=["csv"])
-        st.caption("Il file viene elaborato solo in memoria per il calcolo e non viene salvato.")
+        st.caption("Non hai ancora il file? Scaricalo dal [Portale Consumi](https://www.consumienergia.it/portaleConsumi/) "
+                   "(si apre in un'altra scheda; le istruzioni sono in [Come funziona](" + CFG["app"]["url_istruzioni"] + ")). "
+                   "Il file viene elaborato solo in memoria per il calcolo e non viene salvato.")
     elif modo == MODI[1]:
         cc = st.columns(3)
         f1_in = cc[0].number_input("F1 [kWh/anno]", 0, 40000, 0, 50)
