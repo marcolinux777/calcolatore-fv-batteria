@@ -720,8 +720,6 @@ if best is not None:
             "in una CER, i calcoli economici di questo strumento vanno rivisti, perché non ne tengono conto. "
             f"Le regole cambiano da una CER all'altra: cerca quelle vicino a casa tua nella "
             f"[Vetrina delle CER del GSE]({URL_CER}) e chiedi lo statuto prima di aderire.\n"
-            "- **Reddito energetico**: contributo a fondo perduto per famiglie con ISEE basso, quando c'è "
-            "un bando aperto.\n"
             "- **Contributi regionali o comunali**: verifica i bandi del tuo territorio.")
 
 # ================================================================ 6. parametri avanzati
